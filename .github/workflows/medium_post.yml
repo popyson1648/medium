@@ -1,4 +1,4 @@
-name: Publish to Medium
+name: Post to Medium
 
 on:
   push:
