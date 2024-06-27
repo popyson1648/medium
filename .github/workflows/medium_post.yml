@@ -13,7 +13,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
-          fetch-depth: 2  # Ensure enough history is fetched for the diff
+          fetch-depth: 2
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,19 +26,32 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Log GitHub Event Data
-        run: cat $GITHUB_EVENT_PATH
-
-      - name: Run Python script to check for modified or added Markdown files
-        id: file_check
+      - name: Fetch modified files
+        id: get_diff
         env:
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: python check_md_files.py
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          commits=$(jq -r '.commits[].id' $GITHUB_EVENT_PATH)
+          for commit in $commits; do
+            curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/commits/$commit" | jq -r '.files[] | select(.filename | startswith("articles/")) | select(.filename | endswith(".md")) | .filename'
+          done | sort -u > modified_files.txt
+
+      - name: Check for modified or added Markdown files
+        id: file_check
+        run: |
+          if [ -s modified_files.txt ]; then
+            echo "Markdown files changed or added:"
+            cat modified_files.txt
+            echo "changed_files=$(cat modified_files.txt | paste -s -d, -)" >> $GITHUB_ENV
+          else
+            echo "No Markdown files were changed or added."
+            exit 0
 
       - name: Publish to Medium
-        if: env.has_md_files == 'true'
+        if: env.changed_files != ''
         env:
           MEDIUM_API_TOKEN: ${{ secrets.MEDIUM_API_TOKEN }}
           DEBUG: '1'
-          md_files: ${{ env.md_files }}
+          changed_files: ${{ env.changed_files }}
         run: python post.py
