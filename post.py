@@ -82,7 +82,7 @@ def main() -> None:
         logging.error("Failed to retrieve user ID. Exiting...")
         return
 
-    changed_files = os.getenv('changed_files')
+    changed_files = os.getenv('md_files')
     if not changed_files:
         logging.error("No changed files found. Exiting...")
         return

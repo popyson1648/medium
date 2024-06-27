@@ -1,5 +1,6 @@
 import os
 import json
+import requests
 import logging
 
 # ログ設定
@@ -19,19 +20,22 @@ def main():
 
     modified_files = []
     for commit in event_data.get('commits', []):
-        modified_files.extend(commit.get('added', []))
-        modified_files.extend(commit.get('modified', []))
+        commit_id = commit['id']
+        url = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/commits/{commit_id}"
+        headers = {'Authorization': f'token {os.getenv("GITHUB_TOKEN")}'}
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        commit_data = response.json()
+        for file in commit_data.get('files', []):
+            if file['filename'].startswith('articles/') and file['filename'].endswith('.md'):
+                modified_files.append(file['filename'])
 
-    # デバッグ用に取得したファイルリストをログ出力
     logging.info(f"Modified files: {modified_files}")
 
-    md_files = [f for f in modified_files if f.startswith('articles/') and f.endswith('.md')]
-
-    if md_files:
-        logging.info(f"Markdown files changed or added: {md_files}")
+    if modified_files:
         with open(os.getenv('GITHUB_ENV'), 'a') as env_file:
             env_file.write(f"has_md_files=true\n")
-            env_file.write(f"md_files={','.join(md_files)}\n")
+            env_file.write(f"md_files={','.join(modified_files)}\n")
     else:
         logging.info("No Markdown files were changed or added.")
         with open(os.getenv('GITHUB_ENV'), 'a') as env_file:
