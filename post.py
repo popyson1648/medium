@@ -42,14 +42,14 @@ def debug_mode(func):
 def log_event_data(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        if os.getenv('DEBUG'):
-            event_path = os.getenv('GITHUB_EVENT_PATH')
-            if event_path and os.path.exists(event_path):
-                with open(event_path, 'r') as f:
-                    event_data = json.load(f)
-                    logging.debug(f'Event data: {json.dumps(event_data, indent=2)}')
-        return result
+        event_path = os.getenv('GITHUB_EVENT_PATH')
+        if event_path and os.path.exists(event_path):
+            with open(event_path, 'r') as f:
+                event_data = json.load(f)
+                logging.info(f'Event data: {json.dumps(event_data, indent=2)}')
+        else:
+            logging.error('GITHUB_EVENT_PATH is not set or the file does not exist.')
+        return func(*args, **kwargs)
     return wrapper
 
 @log_function
