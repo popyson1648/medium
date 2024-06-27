@@ -84,7 +84,9 @@ def main() -> None:
     for commit in event_data['commits']:
         added_files = commit.get('added', [])
         modified_files = commit.get('modified', [])
-        for file_path in added_files + modified_files:
+        files_to_process = added_files + modified_files
+
+        for file_path in files_to_process:
             if file_path.startswith('articles/') and file_path.endswith('.md'):
                 with open(file_path, 'r', encoding='utf-8') as file:
                     content = file.read()
