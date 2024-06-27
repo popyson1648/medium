@@ -3,7 +3,9 @@ import requests
 import json
 import re
 from typing import Dict, Union, List
+from functools import wraps
 
+# Medium APIトークン
 # Medium APIトークン
 token = os.getenv('MEDIUM_API_TOKEN')
 base_url = 'https://api.medium.com/v1'
@@ -15,6 +17,18 @@ headers = {
     'Accept': 'application/json',
     'Accept-Charset': 'utf-8'
 }
+
+
+def debug_mode(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if os.getenv('DEBUG'):
+            project_root = os.path.dirname(os.path.abspath(__file__))
+            os.environ['GITHUB_EVENT_PATH'] = os.path.join(
+                project_root, 'event.json')
+        return func(*args, **kwargs)
+    return wrapper
+
 
 def get_user_id() -> str:
     response = requests.get(f'{base_url}/me', headers=headers)
@@ -32,6 +46,7 @@ def get_user_id() -> str:
         print(f'Response content: {response.content}')  # レスポンスの内容を表示
     return ''  # エラー時は空文字を返す
 
+
 def parse_metadata(content: str) -> Dict[str, str]:
     metadata = {}
     match = re.search(r'<!--(.*?)-->', content, re.DOTALL)
@@ -43,13 +58,17 @@ def parse_metadata(content: str) -> Dict[str, str]:
                 metadata[key.strip()] = value.strip()
     return metadata
 
+
+@debug_mode
 def read_event_data() -> Dict:
     event_path = os.getenv('GITHUB_EVENT_PATH')
     with open(event_path, 'r') as f:
         return json.load(f)
 
+
 def post_to_medium(user_id: str, post_data: Dict[str, Union[str, List[str], bool]]) -> None:
-    response = requests.post(f'{base_url}/users/{user_id}/posts', headers=headers, json=post_data)
+    response = requests.post(
+        f'{base_url}/users/{user_id}/posts', headers=headers, json=post_data)
     try:
         response.raise_for_status()  # HTTPエラーチェック
         print(f'Successfully posted to Medium: {response.json()}')
@@ -60,6 +79,7 @@ def post_to_medium(user_id: str, post_data: Dict[str, Union[str, List[str], bool
     except json.JSONDecodeError:
         print('Error decoding JSON response')
         print(f'Response content: {response.content}')  # レスポンスの内容を表示
+
 
 def main() -> None:
     user_id = get_user_id()
@@ -77,12 +97,15 @@ def main() -> None:
 
                 metadata = parse_metadata(content)
                 title = metadata.get('title', 'Untitled')
-                tags = [tag.strip() for tag in metadata.get('tags', '').split(',')]
+                tags = [tag.strip()
+                        for tag in metadata.get('tags', '').split(',')]
                 publish_status = metadata.get('publishStatus', 'draft')
                 license = metadata.get('license', '')
-                notify_followers = metadata.get('notifyFollowers', 'false').lower() == 'true'
+                notify_followers = metadata.get(
+                    'notifyFollowers', 'false').lower() == 'true'
 
-                content = re.sub(r'<!--(.*?)-->', '', content, count=1, flags=re.DOTALL).strip()
+                content = re.sub(r'<!--(.*?)-->', '', content,
+                                 count=1, flags=re.DOTALL).strip()
 
                 post_data = {
                     'title': title,
@@ -95,6 +118,7 @@ def main() -> None:
                 }
 
                 post_to_medium(user_id, post_data)
+
 
 if __name__ == '__main__':
     main()
