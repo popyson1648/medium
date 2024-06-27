@@ -32,7 +32,8 @@ jobs:
       - name: Check for modified or added Markdown files
         id: file_check
         run: |
-          changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E 'articles/.*\.md')
+          set -o pipefail
+          changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E 'articles/.*\.md' || true)
           echo "changed_files=$changed_files" >> $GITHUB_ENV
           if [ -z "$changed_files" ]; then
             echo "No Markdown files were changed or added."
