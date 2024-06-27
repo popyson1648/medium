@@ -6,7 +6,7 @@ from typing import Dict, Union, List
 from functools import wraps
 
 # Medium APIトークン
-token = 'mytoken'
+token = os.getenv('MEDIUM_API_TOKEN')
 base_url = 'https://api.medium.com/v1'
 
 # ヘッダーの設定
