@@ -1,9 +1,9 @@
 name: Post to Medium
 
-on:
+on: 
   push:
-    paths:
-      - articles/**/*.md
+    branches:
+      - main
 
 jobs:
   publish:
@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,7 +26,23 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Log GitHub Event Data
+        run: cat $GITHUB_EVENT_PATH
+
+      - name: Check for modified or added Markdown files
+        id: file_check
+        run: |
+          changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E 'articles/.*\.md')
+          echo "changed_files=$changed_files" >> $GITHUB_ENV
+          if [ -z "$changed_files" ]; then
+            echo "No Markdown files were changed or added."
+            exit 0
+          else
+            echo "Markdown files changed or added: $changed_files"
+        shell: bash
+
       - name: Publish to Medium
+        if: env.changed_files != ''
         env:
           MEDIUM_API_TOKEN: ${{ secrets.MEDIUM_API_TOKEN }}
           DEBUG: '1'

@@ -39,19 +39,6 @@ def debug_mode(func):
         return func(*args, **kwargs)
     return wrapper
 
-def log_event_data(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        event_path = os.getenv('GITHUB_EVENT_PATH')
-        if event_path and os.path.exists(event_path):
-            with open(event_path, 'r') as f:
-                event_data = json.load(f)
-                logging.info(f'Event data: {json.dumps(event_data, indent=2)}')
-        else:
-            logging.error('GITHUB_EVENT_PATH is not set or the file does not exist.')
-        return func(*args, **kwargs)
-    return wrapper
-
 @log_function
 def get_user_id() -> str:
     response = requests.get(f'{base_url}/me', headers=headers)
@@ -84,7 +71,6 @@ def parse_metadata(content: str) -> Dict[str, str]:
 
 @log_function
 @debug_mode
-@log_event_data
 def read_event_data() -> Dict:
     event_path = os.getenv('GITHUB_EVENT_PATH')
     with open(event_path, 'r') as f:
