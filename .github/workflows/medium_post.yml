@@ -1,6 +1,6 @@
 name: Post to Medium
 
-on: 
+on:
   push:
     branches:
       - main
