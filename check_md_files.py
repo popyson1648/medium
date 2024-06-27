@@ -29,11 +29,13 @@ def main():
 
     if md_files:
         logging.info(f"Markdown files changed or added: {md_files}")
-        print(f"::set-output name=has_md_files::true")
-        print(f"::set-output name=md_files::{','.join(md_files)}")
+        with open(os.getenv('GITHUB_ENV'), 'a') as env_file:
+            env_file.write(f"has_md_files=true\n")
+            env_file.write(f"md_files={','.join(md_files)}\n")
     else:
         logging.info("No Markdown files were changed or added.")
-        print(f"::set-output name=has_md_files::false")
+        with open(os.getenv('GITHUB_ENV'), 'a') as env_file:
+            env_file.write(f"has_md_files=false\n")
 
 if __name__ == "__main__":
     main()
