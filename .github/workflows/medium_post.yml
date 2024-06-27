@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - articles/**/*.md
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -12,7 +13,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
@@ -21,11 +22,10 @@ jobs:
         run: pip install --upgrade pip
 
       - name: Install dependencies
-        run: |
-          pip install requests
+        run: pip install requests
 
       - name: Publish to Medium
         env:
           MEDIUM_API_TOKEN: ${{ secrets.MEDIUM_API_TOKEN }}
-        run: |
-          python post.py
+          DEBUG: '1'
+        run: python post.py

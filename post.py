@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import re
+import logging
 from typing import Dict, Union, List
 from functools import wraps
 
@@ -17,6 +18,18 @@ headers = {
     'Accept-Charset': 'utf-8'
 }
 
+# ログ設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def log_function(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logging.info(f'Entering: {func.__name__}')
+        result = func(*args, **kwargs)
+        logging.info(f'Exiting: {func.__name__}')
+        return result
+    return wrapper
+
 def debug_mode(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -26,22 +39,37 @@ def debug_mode(func):
         return func(*args, **kwargs)
     return wrapper
 
+def log_event_data(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        if os.getenv('DEBUG'):
+            event_path = os.getenv('GITHUB_EVENT_PATH')
+            if event_path and os.path.exists(event_path):
+                with open(event_path, 'r') as f:
+                    event_data = json.load(f)
+                    logging.debug(f'Event data: {json.dumps(event_data, indent=2)}')
+        return result
+    return wrapper
+
+@log_function
 def get_user_id() -> str:
     response = requests.get(f'{base_url}/me', headers=headers)
     try:
         response.raise_for_status()  # HTTPエラーチェック
         user_info = response.json()
-        print(user_info)  # デバッグ用にレスポンス全体を表示
+        logging.info(f'User info: {user_info}')  # デバッグ用にレスポンス全体を表示
         return user_info['data']['id']
     except requests.exceptions.HTTPError as http_err:
-        print(f'HTTP error occurred: {http_err}')
+        logging.error(f'HTTP error occurred: {http_err}')
     except requests.exceptions.RequestException as err:
-        print(f'Error occurred: {err}')
+        logging.error(f'Error occurred: {err}')
     except json.JSONDecodeError:
-        print('Error decoding JSON response')
-        print(f'Response content: {response.content}')  # レスポンスの内容を表示
+        logging.error('Error decoding JSON response')
+        logging.error(f'Response content: {response.content}')  # レスポンスの内容を表示
     return ''  # エラー時は空文字を返す
 
+@log_function
 def parse_metadata(content: str) -> Dict[str, str]:
     metadata = {}
     match = re.search(r'<!--(.*?)-->', content, re.DOTALL)
@@ -51,32 +79,39 @@ def parse_metadata(content: str) -> Dict[str, str]:
             if ':' in line:
                 key, value = line.split(':', 1)
                 metadata[key.strip()] = value.strip()
+    logging.info(f'Metadata parsed: {metadata}')
     return metadata
 
+@log_function
 @debug_mode
+@log_event_data
 def read_event_data() -> Dict:
     event_path = os.getenv('GITHUB_EVENT_PATH')
     with open(event_path, 'r') as f:
-        return json.load(f)
+        data = json.load(f)
+    logging.info(f'Event data read: {data}')
+    return data
 
+@log_function
 def post_to_medium(user_id: str, post_data: Dict[str, Union[str, List[str], bool]]) -> None:
     response = requests.post(
         f'{base_url}/users/{user_id}/posts', headers=headers, json=post_data)
     try:
         response.raise_for_status()  # HTTPエラーチェック
-        print(f'Successfully posted to Medium: {response.json()}')
+        logging.info(f'Successfully posted to Medium: {response.json()}')
     except requests.exceptions.HTTPError as http_err:
-        print(f'HTTP error occurred: {http_err}')
+        logging.error(f'HTTP error occurred: {http_err}')
     except requests.exceptions.RequestException as err:
-        print(f'Error occurred: {err}')
+        logging.error(f'Error occurred: {err}')
     except json.JSONDecodeError:
-        print('Error decoding JSON response')
-        print(f'Response content: {response.content}')  # レスポンスの内容を表示
+        logging.error('Error decoding JSON response')
+        logging.error(f'Response content: {response.content}')  # レスポンスの内容を表示
 
+@log_function
 def main() -> None:
     user_id = get_user_id()
     if not user_id:
-        print("Failed to retrieve user ID. Exiting...")
+        logging.error("Failed to retrieve user ID. Exiting...")
         return
 
     event_data = read_event_data()
@@ -88,6 +123,7 @@ def main() -> None:
 
         for file_path in files_to_process:
             if file_path.startswith('articles/') and file_path.endswith('.md'):
+                logging.info(f'Processing file: {file_path}')
                 with open(file_path, 'r', encoding='utf-8') as file:
                     content = file.read()
 
