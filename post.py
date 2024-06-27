@@ -30,15 +30,6 @@ def log_function(func):
         return result
     return wrapper
 
-def debug_mode(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        if os.getenv('DEBUG'):
-            project_root = os.path.dirname(os.path.abspath(__file__))
-            os.environ['GITHUB_EVENT_PATH'] = os.path.join(project_root, 'event.json')
-        return func(*args, **kwargs)
-    return wrapper
-
 @log_function
 def get_user_id() -> str:
     response = requests.get(f'{base_url}/me', headers=headers)
@@ -70,15 +61,6 @@ def parse_metadata(content: str) -> Dict[str, str]:
     return metadata
 
 @log_function
-@debug_mode
-def read_event_data() -> Dict:
-    event_path = os.getenv('GITHUB_EVENT_PATH')
-    with open(event_path, 'r') as f:
-        data = json.load(f)
-    logging.info(f'Event data read: {data}')
-    return data
-
-@log_function
 def post_to_medium(user_id: str, post_data: Dict[str, Union[str, List[str], bool]]) -> None:
     response = requests.post(
         f'{base_url}/users/{user_id}/posts', headers=headers, json=post_data)
@@ -100,39 +82,38 @@ def main() -> None:
         logging.error("Failed to retrieve user ID. Exiting...")
         return
 
-    event_data = read_event_data()
+    changed_files = os.getenv('changed_files')
+    if not changed_files:
+        logging.error("No changed files found. Exiting...")
+        return
 
-    for commit in event_data['commits']:
-        added_files = commit.get('added', [])
-        modified_files = commit.get('modified', [])
-        files_to_process = added_files + modified_files
+    md_files = changed_files.split(',')
 
-        for file_path in files_to_process:
-            if file_path.startswith('articles/') and file_path.endswith('.md'):
-                logging.info(f'Processing file: {file_path}')
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    content = file.read()
+    for file_path in md_files:
+        logging.info(f'Processing file: {file_path}')
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
 
-                metadata = parse_metadata(content)
-                title = metadata.get('title', 'Untitled')
-                tags = [tag.strip() for tag in metadata.get('tags', '').split(',')]
-                publish_status = metadata.get('publishStatus', 'draft')
-                license = metadata.get('license', '')
-                notify_followers = metadata.get('notifyFollowers', 'false').lower() == 'true'
+        metadata = parse_metadata(content)
+        title = metadata.get('title', 'Untitled')
+        tags = [tag.strip() for tag in metadata.get('tags', '').split(',')]
+        publish_status = metadata.get('publishStatus', 'draft')
+        license = metadata.get('license', '')
+        notify_followers = metadata.get('notifyFollowers', 'false').lower() == 'true'
 
-                content = re.sub(r'<!--(.*?)-->', '', content, count=1, flags=re.DOTALL).strip()
+        content = re.sub(r'<!--(.*?)-->', '', content, count=1, flags=re.DOTALL).strip()
 
-                post_data = {
-                    'title': title,
-                    'contentFormat': 'markdown',
-                    'content': content,
-                    'tags': tags,
-                    'publishStatus': publish_status,
-                    'license': license,
-                    'notifyFollowers': notify_followers
-                }
+        post_data = {
+            'title': title,
+            'contentFormat': 'markdown',
+            'content': content,
+            'tags': tags,
+            'publishStatus': publish_status,
+            'license': license,
+            'notifyFollowers': notify_followers
+        }
 
-                post_to_medium(user_id, post_data)
+        post_to_medium(user_id, post_data)
 
 if __name__ == '__main__':
     main()
